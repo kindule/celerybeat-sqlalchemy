@@ -23,7 +23,6 @@ cs = CrontabSchedule(minute='*/5')
 session.add(cs)
 session.commit()
 
-pt = PeriodicTask(name="hello", task="task_hello", crontab=cs, args='[]', kwargs='{}')
+pt = PeriodicTask(name="jinge", task="task_hello", crontab=cs, args='[]', kwargs='{}')
 session.add(pt)
 session.commit()
-
