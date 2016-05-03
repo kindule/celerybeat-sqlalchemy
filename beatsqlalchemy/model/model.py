@@ -13,11 +13,10 @@
 #=============================================================================
 '''
 import datetime
-
 from sqlalchemy.orm import relationship
-
 from .base import Base
 from celery import schedules
+from sqlalchemy import event
 from sqlalchemy import Column, String, DateTime, ForeignKey, Integer, Boolean
 
 
@@ -69,13 +68,13 @@ class PeriodicTasks(Base):
     last_update = Column(DateTime, default=datetime.datetime.utcnow)
 
     @classmethod
-    def changed(cls, session, instance, **kwargs):
+    def changed(cls, session, instance):
         if not instance.no_changes:
             cls.get_or_create(session, defaults={'last_update': datetime.datetime.now()}, ident=1)
 
     @classmethod
     def last_change(cls, session):
-        obj = cls.filter_by(session,  ident=1).first()
+        obj = cls.filter_by(session, ident=1).first()
         return obj.last_update if obj else None
 
 
@@ -91,6 +90,7 @@ class PeriodicTask(Base):
     last_run_at = Column(DateTime, default=datetime.datetime.utcnow)
     total_run_count = Column(Integer, default=0)
     enabled = Column(Boolean, default=True)
+    no_changes = False
 
     def __str__(self):
         fmt = '{0.name}: {0.crontab}'
@@ -99,3 +99,8 @@ class PeriodicTask(Base):
     @property
     def schedule(self):
         return self.crontab.schedule
+
+    def save(self, session):
+        session.add(self)
+        session.commit()
+

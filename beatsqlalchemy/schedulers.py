@@ -22,7 +22,7 @@ from celery.utils.encoding import safe_str
 from celery.utils.log import get_logger
 from celery.utils.timeutils import is_naive
 
-from backend import Session
+from .settings import Session
 from model import PeriodicTask, CrontabSchedule, PeriodicTasks
 
 DEFAULT_MAX_INTERVAL = 5
