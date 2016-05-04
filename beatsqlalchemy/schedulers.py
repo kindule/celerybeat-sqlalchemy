@@ -186,7 +186,6 @@ class DatabaseScheduler(Scheduler):
         while self._dirty:
             try:
                 name = self._dirty.pop()
-                debug('Flush dirty schedule {}'.format(name))
                 _tried.add(name)
                 self.schedule[name].save()
             except KeyError:
