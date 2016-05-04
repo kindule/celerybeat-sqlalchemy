@@ -12,17 +12,15 @@
 #      History:
 #=============================================================================
 '''
-from settings import Session
-from model import CrontabSchedule
-from model import PeriodicTask
 
+from celery import Celery
+app = Celery('celerybeat-sqlalchemy')
+app.config_from_object('settings')
+from model import PeriodicTask, CrontabSchedule,  get_session
 
-session = Session()
-
+session = get_session()
 cs = CrontabSchedule(minute='*/5')
 session.add(cs)
-session.commit()
-
-pt = PeriodicTask(name="jinge", task="task_hello", crontab=cs, args='[]', kwargs='{}')
+pt = PeriodicTask(name="jafasf", task="task_hello",  crontab=cs, args='[]', kwargs='{}')
 session.add(pt)
-session.commit()
+session.flush()

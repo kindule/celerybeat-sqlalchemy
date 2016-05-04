@@ -37,21 +37,19 @@ class TimestampModel(object):
         return session.query(cls).filter_by(**kwargs)
 
     @classmethod
-    def get_or_create(cls, session, defaults=None, **kwargs):
-        obj = session.query(cls).filter_by(**kwargs).first()
+    def get_or_create(cls, session_obj, defaults=None, **kwargs):
+        obj = session_obj.query(cls).filter_by(**kwargs).first()
         if obj:
             return obj, False
         else:
             params = dict((k, v) for k, v in kwargs.iteritems())
             params.update(defaults or {})
             obj = cls(**params)
-            session.add(obj)
-            session.commit()
             return obj, True
 
     @classmethod
-    def update_or_create(cls, session, defaults=None, **kwargs):
-        obj = session.query(cls).filter_by(**kwargs).first()
+    def update_or_create(cls, session_obj, defaults=None, **kwargs):
+        obj = session_obj.query(cls).filter_by(**kwargs).first()
         if obj:
             for key, value in defaults.iteritems():
                 setattr(obj, key, value)
@@ -61,12 +59,6 @@ class TimestampModel(object):
             params.update(defaults or {})
             obj = cls(**params)
             created = True
-        session.add(obj)
-        session.commit()
         return obj, created
-
-    def save(self, session):
-        session.add(self)
-        session.commit()
 
 Base = declarative_base(cls=TimestampModel)

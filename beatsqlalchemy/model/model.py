@@ -16,8 +16,6 @@ import datetime
 from sqlalchemy.orm import relationship
 from .base import Base
 from celery import schedules
-from settings import Session
-from sqlalchemy import event
 from sqlalchemy import Column, String, DateTime, ForeignKey, Integer, Boolean
 
 
@@ -71,7 +69,8 @@ class PeriodicTasks(Base):
     @classmethod
     def changed(cls, session, instance):
         if not instance.no_changes:
-            cls.update_or_create(session, defaults={'last_update': datetime.datetime.now()}, ident=1)
+            obj, _ = cls.update_or_create(session, defaults={'last_update': datetime.datetime.now()}, ident=1)
+            session.add(obj)
 
     @classmethod
     def last_change(cls, session):
@@ -100,14 +99,3 @@ class PeriodicTask(Base):
     @property
     def schedule(self):
         return self.crontab.schedule
-
-    def save(self, session):
-        session.add(self)
-        session.commit()
-
-
-@event.listens_for(Session, "before_flush")
-def before_flush(session, flush_context, instances):
-    for obj in session.new | session.dirty:
-        if isinstance(obj, PeriodicTask):
-            PeriodicTasks.changed(session, obj)

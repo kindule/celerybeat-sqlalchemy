@@ -21,9 +21,7 @@ from celery.beat import ScheduleEntry, Scheduler
 from celery.utils.encoding import safe_str
 from celery.utils.log import get_logger
 from celery.utils.timeutils import is_naive
-
-from .settings import Session
-from model import PeriodicTask, CrontabSchedule, PeriodicTasks
+from model import PeriodicTask, CrontabSchedule, PeriodicTasks, get_session, open_session
 
 DEFAULT_MAX_INTERVAL = 5
 
@@ -34,16 +32,14 @@ Couldn't add entry %r to database schedule: %r. Contents: %r
 logger = get_logger(__name__)
 debug, info, error = logger.debug, logger.info, logger.error
 
-session = Session()
-
 
 class ModelEntry(ScheduleEntry):
     model_schedules = ((schedules.crontab, CrontabSchedule, 'crontab'),)
     save_fields = ['last_run_at', 'total_run_count', 'no_changes']
-    session = session
 
-    def __init__(self, model):
+    def __init__(self, model, session=None):
         self.app = current_app
+        self.session = session or get_session()
         self.name = model.name
         self.task = model.task
         self.schedule = model.schedule
@@ -62,7 +58,7 @@ class ModelEntry(ScheduleEntry):
     def _disable(self, model):
         model.no_changes = True
         model.enabled = False
-        model.save(self.session)
+        self.session.add(model)
 
     def is_due(self):
         if not self.model.enabled:
@@ -84,11 +80,16 @@ class ModelEntry(ScheduleEntry):
         obj = PeriodicTask.filter_by(self.session, id=self.model.id).first()
         for field in self.save_fields:
             setattr(obj, field, getattr(self.model, field))
-        obj.save(self.session)
+        self.save_model(self.session, obj)
+
+    @staticmethod
+    def save_model(session, obj):
+        session.add(obj)
 
     @classmethod
-    def to_model_schedule(cls, schedule):
+    def to_model_schedule(cls, schedule, session):
         """
+        :param session:
         :param schedule:
         :return:
         """
@@ -97,14 +98,15 @@ class ModelEntry(ScheduleEntry):
             schedule = schedules.maybe_schedule(schedule)
             if isinstance(schedule, schedule_type):
                 model_schedule = model_type.from_schedule(session, schedule)
-                model_schedule.save(cls.session)
+                cls.save_model(session, model_schedule)
                 return model_schedule, model_field
         raise ValueError('Cannot convert schedule type {0!r} to model'.format(schedule))
 
     @classmethod
-    def from_entry(cls, name, skip_fields=('relative', 'options'), **entry):
+    def from_entry(cls, name, session, skip_fields=('relative', 'options'), **entry):
         """
         创建或者更新PeriodicTask
+        :param session:
         :param name:
         :param skip_fields:
         :param entry:
@@ -114,11 +116,13 @@ class ModelEntry(ScheduleEntry):
         for skip_field in skip_fields:
             fields.pop(skip_field, None)
         schedule = fields.pop('schedule')
-        model_schedule, model_field = cls.to_model_schedule(schedule)
+        model_schedule, model_field = cls.to_model_schedule(schedule, session)
         fields[model_field] = model_schedule
         fields['args'] = json.dumps(fields.get('args') or [])
         fields['kwargs'] = json.dumps(fields.get('kwargs') or {})
-        return cls(PeriodicTask.update_or_create(session=session, name=name, defaults=fields)[0])
+        model, _ = PeriodicTask.update_or_create(session, name=name, defaults=fields)
+        cls.save_model(session, model)
+        return cls(model)
 
     def __repr__(self):
         return '<ModelEntry: {0} {1}(*{2}, **{3}) {{4}}>'.format(
@@ -128,7 +132,7 @@ class ModelEntry(ScheduleEntry):
 
 class DatabaseScheduler(Scheduler):
     sync_every = 1 * 60
-    session = session
+
     Entry = ModelEntry
     Model = PeriodicTask
     Changes = PeriodicTasks
@@ -136,7 +140,8 @@ class DatabaseScheduler(Scheduler):
     _last_timestamp = None
     _initial_read = False
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, session=None, *args, **kwargs):
+        self.session = session or get_session()
         self._dirty = set()
         self._finalize = Finalize(self, self.sync, exitpriority=5)
         super(DatabaseScheduler, self).__init__(*args, **kwargs)
@@ -151,7 +156,7 @@ class DatabaseScheduler(Scheduler):
     def all_as_schedule(self):
         debug('DatabaseScheduler: Fetching database schedule')
         s = {}
-        for model in self.Model.filter_by(session, enabled=True).all():
+        for model in self.Model.filter_by(self.session, enabled=True).all():
             try:
                 s[model.name] = self.Entry(model)
             except ValueError:
@@ -159,7 +164,7 @@ class DatabaseScheduler(Scheduler):
         return s
 
     def schedule_changed(self):
-        last, ts = self._last_timestamp, self.Changes.last_change(session)
+        last, ts = self._last_timestamp, self.Changes.last_change(self.session)
         debug('schedule changed: last {} ts {}'.format(last, ts))
         try:
             if ts and ts > (last if last else ts):
@@ -181,6 +186,7 @@ class DatabaseScheduler(Scheduler):
         while self._dirty:
             try:
                 name = self._dirty.pop()
+                debug('Flush dirty schedule {}'.format(name))
                 _tried.add(name)
                 self.schedule[name].save()
             except KeyError:
@@ -191,7 +197,7 @@ class DatabaseScheduler(Scheduler):
         for name, entry in dict_.items():
             try:
 
-                s[name] = self.Entry.from_entry(name, **entry)
+                s[name] = self.Entry.from_entry(name, self.session, **entry)
             except Exception as exc:
                 error(ADD_ENTRY_ERROR, name, exc, entry)
         self.schedule.update(s)
@@ -222,5 +228,5 @@ class DatabaseScheduler(Scheduler):
         if update:
             self.sync()
             self._schedule = self.all_as_schedule()
-            debug('Current schedule:\n%s', '\n'.join(repr(entry) for entry in self._schedule.itervalues()), )
+            debug('Current schedule:\n%s', '\n'.join(repr(entry) for entry in self._schedule.itervalues()))
         return self._schedule

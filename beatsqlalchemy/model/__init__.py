@@ -12,12 +12,46 @@
 #      History:
 #=============================================================================
 '''
-from .model import CrontabSchedule, PeriodicTask, PeriodicTasks
+from contextlib import contextmanager
 
+from .model import CrontabSchedule, PeriodicTask, PeriodicTasks
+from celery import current_app
+from sqlalchemy import event
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.schema import MetaData
 
 __all__ = [
     'CrontabSchedule', 'PeriodicTask', 'PeriodicTasks', 'before_flush'
 ]
 
+engine = create_engine(current_app.conf.ENGINE_URL, pool_size=20, pool_recycle=3600)
+Session = sessionmaker(bind=engine, autocommit=True)
+metadata = MetaData(bind=engine)
 
 
+def get_session():
+    return Session()
+
+
+@contextmanager
+def open_session():
+    try:
+        new_session = Session()
+        yield new_session
+        new_session.commit()
+    except OperationalError as e:
+        # create all table
+        metadata.create_all(checkfirst=True)
+        new_session.commit()
+    except Exception as e:
+        new_session.rollback()
+        raise e
+
+
+@event.listens_for(Session, "before_flush")
+def before_flush(session, flush_context, instances):
+    for obj in session.new | session.dirty:
+        if isinstance(obj, PeriodicTask):
+            PeriodicTasks.changed(session, obj)
