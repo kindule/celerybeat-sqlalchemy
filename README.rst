@@ -8,6 +8,9 @@ that stores both the schedules themselves and their status
 information in a backend SQLAlchemy database. It can be installed by
 installing the beatsqlalchemy Python egg::
 
+Installation
+============
+
     # pip install -U git+ssh://git@192.168.1.121/qtools/beatsqlalchemy.git
 
 And specifying the scheduler when running Celery Beat, e.g.::
@@ -18,6 +21,11 @@ Settings for the scheduler are defined in your celery configuration file
 similar to how other aspects of Celery are configured::
 
     ENGINE_URL = "mysql+mysqldb://root:letsg0@192.168.99.100:3307/celerybeat?charset=utf8"
+
+You will then want to create the necessary tables. Go to the contrib directory and use create_table for necessary tables.
+
+    python create_table.py
+
 
 If no settings are specified, the library will attempt to use the
 **schedules** collection in the local **celery** database.
