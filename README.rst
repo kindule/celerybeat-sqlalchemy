@@ -5,7 +5,7 @@ A beatsqlalchemy project.
 
 This is a Celery Beat Scheduler (http://celery.readthedocs.org/en/latest/userguide/periodic-tasks.html)
 that stores both the schedules themselves and their status
-information in a backend SQLALChemy database. It can be installed by
+information in a backend SQLAlchemy database. It can be installed by
 installing the beatsqlalchemy Python egg::
 
     # pip install -U git+ssh://git@192.168.1.121/qtools/beatsqlalchemy.git
