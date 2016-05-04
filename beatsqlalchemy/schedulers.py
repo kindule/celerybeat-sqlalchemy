@@ -21,7 +21,7 @@ from celery.beat import ScheduleEntry, Scheduler
 from celery.utils.encoding import safe_str
 from celery.utils.log import get_logger
 from celery.utils.timeutils import is_naive
-from model import PeriodicTask, CrontabSchedule, PeriodicTasks, get_session, open_session
+from model import PeriodicTask, CrontabSchedule, PeriodicTasks, get_session, IntervalSchedule
 
 DEFAULT_MAX_INTERVAL = 5
 
@@ -34,7 +34,8 @@ debug, info, error = logger.debug, logger.info, logger.error
 
 
 class ModelEntry(ScheduleEntry):
-    model_schedules = ((schedules.crontab, CrontabSchedule, 'crontab'),)
+    model_schedules = ((schedules.crontab, CrontabSchedule, 'crontab'),
+                       (schedules.schedule, IntervalSchedule, 'interval'))
     save_fields = ['last_run_at', 'total_run_count', 'no_changes']
 
     def __init__(self, model, session=None):

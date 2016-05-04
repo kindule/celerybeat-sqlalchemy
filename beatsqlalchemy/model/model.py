@@ -17,6 +17,46 @@ from sqlalchemy.orm import relationship
 from .base import Base
 from celery import schedules
 from sqlalchemy import Column, String, DateTime, ForeignKey, Integer, Boolean
+from sqlalchemy_utils.types.choice import ChoiceType
+
+
+class ValidationError(Exception):
+    pass
+
+
+class IntervalSchedule(Base):
+    __tablename__ = "interval_schedule"
+    PERIOD_CHOICES = (('days', 'Days'),
+                      ('hours', 'Hours'),
+                      ('minutes', 'Minutes'),
+                      ('seconds', 'Seconds'),
+                      ('microseconds', 'Microseconds'))
+
+    every = Column(Integer, nullable=False)
+    period = Column(ChoiceType(PERIOD_CHOICES))
+    periodic_tasks = relationship('PeriodicTask')
+
+    @property
+    def schedule(self):
+        return schedules.schedule(datetime.timedelta(**{self.period.code: self.every}))
+
+    @classmethod
+    def from_schedule(cls, session, schedule, period='seconds'):
+        every = max(schedule.run_every.total_seconds(), 0)
+        obj = cls.filter_by(session, every=every, period=period).first()
+        if obj is None:
+            return cls(every=every, period=period)
+        else:
+            return obj
+
+    def __str__(self):
+        if self.every == 1:
+            return _('every {0.period_singular}').format(self)
+        return _('every {0.every} {0.period}').format(self)
+
+    @property
+    def period_singular(self):
+        return self.period[:-1]
 
 
 class CrontabSchedule(Base):
@@ -85,6 +125,8 @@ class PeriodicTask(Base):
     task = Column(String(length=120))
     crontab_id = Column(Integer, ForeignKey('crontab_schedule.id'))
     crontab = relationship("CrontabSchedule", back_populates="periodic_tasks")
+    interval_id = Column(Integer, ForeignKey('interval_schedule.id'))
+    interval = relationship("IntervalSchedule", back_populates="periodic_tasks")
     args = Column(String(length=120))
     kwargs = Column(String(length=120))
     last_run_at = Column(DateTime, default=datetime.datetime.utcnow)
@@ -98,4 +140,7 @@ class PeriodicTask(Base):
 
     @property
     def schedule(self):
-        return self.crontab.schedule
+        if self.crontab:
+            return self.crontab.schedule
+        if self.interval:
+            return self.interval.schedule
