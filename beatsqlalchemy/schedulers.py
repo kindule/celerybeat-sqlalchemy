@@ -165,7 +165,6 @@ class DatabaseScheduler(Scheduler):
 
     def schedule_changed(self):
         last, ts = self._last_timestamp, self.Changes.last_change(self.session)
-        debug('schedule changed: last {} ts {}'.format(last, ts))
         try:
             if ts and ts > (last if last else ts):
                 return True
