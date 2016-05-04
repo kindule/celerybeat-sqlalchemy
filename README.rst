@@ -1,7 +1,7 @@
 A beatsqlalchemy project
 ===============================
 
-A beatsqllchemy project.
+A beatsqlalchemy project.
 
 This is a Celery Beat Scheduler (http://celery.readthedocs.org/en/latest/userguide/periodic-tasks.html)
 that stores both the schedules themselves and their status
