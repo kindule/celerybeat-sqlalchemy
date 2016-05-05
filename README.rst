@@ -68,4 +68,4 @@ The example from Celery User Guide::Periodic Tasks.
 	}
 
 
-:doc:`/contrib/addtask.py` contrib/addtask.py
+:doc:`./contrib/addtask.py`
