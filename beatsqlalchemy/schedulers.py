@@ -188,7 +188,7 @@ class DatabaseScheduler(Scheduler):
         return new_entry
 
     def sync(self):
-        info('Writing entries...')
+        debug('Writing entries...')
         _tried = set()
         while self._dirty:
             try:
