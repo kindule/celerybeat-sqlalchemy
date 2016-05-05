@@ -18,11 +18,11 @@ Feature
 Installation
 ============
 
-    # pip install -U git+ssh://git@192.168.1.121/qtools/beatsqlalchemy.git
+    $ pip install -U git+ssh://git@192.168.1.121/qtools/beatsqlalchemy.git
 
 or with version
 
-    # pip install -U git+ssh://git@192.168.1.121/qtools/beatsqlalchemy.git@tag-1.0.0
+    $ pip install -U git+ssh://git@192.168.1.121/qtools/beatsqlalchemy.git@tag-1.0.0
 
 And specifying the scheduler when running Celery Beat, e.g.::
 
