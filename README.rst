@@ -18,9 +18,11 @@ Feature
 Installation
 ============
 
+::
+
     $ pip install -U git+ssh://git@192.168.1.121/qtools/beatsqlalchemy.git
 
-or with version
+or with version::
 
     $ pip install -U git+ssh://git@192.168.1.121/qtools/beatsqlalchemy.git@tag-1.0.0
 
