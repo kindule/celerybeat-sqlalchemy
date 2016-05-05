@@ -20,7 +20,7 @@ And specifying the scheduler when running Celery Beat, e.g.::
 Settings for the scheduler are defined in your celery configuration file
 similar to how other aspects of Celery are configured::
 
-    ENGINE_URL = "mysql+mysqldb://root:letsg0@192.168.99.100:3307/celerybeat?charset=utf8"
+    BEAT_SQLAlchemy_URL = "mysql+mysqldb://root:letsg0@192.168.99.100:3307/celerybeat?charset=utf8"
 
 You will then want to create the necessary tables. Go to the contrib directory and use create_table for necessary tables.
 
