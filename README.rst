@@ -11,9 +11,9 @@ installing the beatsqlalchemy Python egg::
 Feature
 =======
 
- #. 后端使用SQLAlchemy（原生Celerybeat使用的是文本文件）
- #. 支持crontab方式和interval方式调度task
- #. 动态增加和删除task
+#. 后端使用SQLAlchemy（原生Celerybeat使用的是文本文件）
+#. 支持crontab方式和interval方式调度task
+#. 动态增加和删除task
 
 Installation
 ============
