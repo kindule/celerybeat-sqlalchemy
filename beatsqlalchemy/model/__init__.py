@@ -14,7 +14,7 @@
 '''
 from contextlib import contextmanager
 
-from .model import CrontabSchedule, PeriodicTask, PeriodicTasks, IntervalSchedule
+from .model import PeriodicTask
 from celery import current_app
 from sqlalchemy import event
 from sqlalchemy import create_engine
@@ -23,7 +23,7 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.schema import MetaData
 
 __all__ = [
-    'CrontabSchedule', 'PeriodicTask', 'PeriodicTasks', 'IntervalSchedule'
+    'UpdateFlag'
 ]
 
 
@@ -63,4 +63,3 @@ def before_flush(session, flush_context, instances):
                 raise ConstraintError('One of interval or crontab must be set.')
             if obj.interval and obj.crontab:
                 raise ConstraintError('Only one of interval or crontab must be set')
-            PeriodicTasks.changed(session, obj)

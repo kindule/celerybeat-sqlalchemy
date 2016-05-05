@@ -15,13 +15,14 @@
 import json
 from multiprocessing.util import Finalize
 
+import datetime
 from celery import current_app
 from celery import schedules
 from celery.beat import ScheduleEntry, Scheduler
 from celery.utils.encoding import safe_str
 from celery.utils.log import get_logger
 from celery.utils.timeutils import is_naive
-from model import PeriodicTask, CrontabSchedule, PeriodicTasks, get_session, IntervalSchedule
+from model import PeriodicTask, get_session
 
 DEFAULT_MAX_INTERVAL = 5
 
@@ -34,9 +35,7 @@ debug, info, error = logger.debug, logger.info, logger.error
 
 
 class ModelEntry(ScheduleEntry):
-    model_schedules = ((schedules.crontab, CrontabSchedule, 'crontab'),
-                       (schedules.schedule, IntervalSchedule, 'interval'))
-    save_fields = ['last_run_at', 'total_run_count', 'no_changes']
+    save_fields = ['last_run_at', 'total_run_count', 'run_immediately']
 
     def __init__(self, model, session=None):
         self.app = current_app
@@ -48,7 +47,13 @@ class ModelEntry(ScheduleEntry):
         self.kwargs = json.loads(model.kwargs or '{}')
         self.total_run_count = model.total_run_count
         self.model = model
-        self.options = {}  # need reconstruction
+        self.options = {
+                    'queue': self.model.queue,
+                    'exchange': self.model.exchange,
+                    'routing_key': self.model.routing_key,
+                    'expires': self.model.expires,
+                    'soft_time_limit': self.model.soft_time_limit
+                }
         if not model.last_run_at:
             model.last_run_at = self._default_now()
         orig = self.last_run_at = model.last_run_at
@@ -64,6 +69,10 @@ class ModelEntry(ScheduleEntry):
     def is_due(self):
         if not self.model.enabled:
             return False, 5.0   # 5 second delay for re-enable.
+        if self.model.run_immediately:
+            # figure out when the schedule would run next anyway
+            _, n = self.schedule.is_due(self.last_run_at)
+            return True, n
         return self.schedule.is_due(self.last_run_at)
 
     def _default_now(self):
@@ -72,7 +81,7 @@ class ModelEntry(ScheduleEntry):
     def __next__(self):
         self.model.last_run_at = self.app.now()
         self.model.total_run_count += 1
-        self.model.no_changes = True
+        self.model.run_immediately = False
         return self.__class__(self.model)
 
     next = __next__  # for 2to3
@@ -88,20 +97,26 @@ class ModelEntry(ScheduleEntry):
         session.add(obj)
 
     @classmethod
-    def to_model_schedule(cls, schedule, session):
+    def to_schedule(cls, schedule, session):
         """
         :param session:
         :param schedule:
         :return:
         """
-        for schedule_type, model_type, model_field in cls.model_schedules:
-            debug(cls.model_schedules)
-            schedule = schedules.maybe_schedule(schedule)
-            if isinstance(schedule, schedule_type):
-                model_schedule = model_type.from_schedule(session, schedule)
-                cls.save_model(session, model_schedule)
-                return model_schedule, model_field
-        raise ValueError('Cannot convert schedule type {0!r} to model'.format(schedule))
+        schedule = schedules.maybe_schedule(schedule)
+        if type(schedule) is schedules.crontab:
+            fill = {'minute': schedule._orig_minute,
+                    'hour': schedule._orig_hour,
+                    'day_of_week': schedule._orig_day_of_week,
+                    'day_of_month': schedule._orig_day_of_month,
+                    'month_of_year': schedule._orig_month_of_year}
+            return json.dumps(fill), 'crontab'
+        elif type(schedule) is schedules.schedule:
+            fill = {'every': schedule.seconds,
+                    'period': 'seconds'}
+            return json.dumps(fill), 'interval'
+        else:
+            raise ValueError('Cannot convert schedule type {0!r} to model'.format(schedule))
 
     @classmethod
     def from_entry(cls, name, session, skip_fields=('relative', 'options'), **entry):
@@ -117,8 +132,8 @@ class ModelEntry(ScheduleEntry):
         for skip_field in skip_fields:
             fields.pop(skip_field, None)
         schedule = fields.pop('schedule')
-        model_schedule, model_field = cls.to_model_schedule(schedule, session)
-        fields[model_field] = model_schedule
+        schedule_field, schedule_type = cls.to_schedule(schedule, session)
+        fields[schedule_type] = schedule_field
         fields['args'] = json.dumps(fields.get('args') or [])
         fields['kwargs'] = json.dumps(fields.get('kwargs') or {})
         model, _ = PeriodicTask.update_or_create(session, name=name, defaults=fields)
@@ -133,15 +148,16 @@ class ModelEntry(ScheduleEntry):
 
 class DatabaseScheduler(Scheduler):
     sync_every = 1 * 60
+    UPDATE_INTERVAL = datetime.timedelta(seconds=5)
 
     Entry = ModelEntry
     Model = PeriodicTask
-    Changes = PeriodicTasks
     _schedule = None
     _last_timestamp = None
     _initial_read = False
 
     def __init__(self, session=None, *args, **kwargs):
+        self._last_updated = None
         self.session = session or get_session()
         self._dirty = set()
         self._finalize = Finalize(self, self.sync, exitpriority=5)
@@ -163,15 +179,6 @@ class DatabaseScheduler(Scheduler):
             except ValueError:
                 pass
         return s
-
-    def schedule_changed(self):
-        last, ts = self._last_timestamp, self.Changes.last_change(self.session)
-        try:
-            if ts and ts > (last if last else ts):
-                return True
-        finally:
-            self._last_timestamp = ts
-        return False
 
     def reserve(self, entry):
         new_entry = Scheduler.reserve(self, entry)
@@ -213,18 +220,16 @@ class DatabaseScheduler(Scheduler):
             )
         self.update_from_dict(entries)
 
+    def requires_update(self):
+        """check whether we should pull an updated schedule
+        from the backend database"""
+        if not self._last_updated:
+            return True
+        return self._last_updated + self.UPDATE_INTERVAL < datetime.datetime.now()
+
     @property
     def schedule(self):
-        update = False
-        if not self._initial_read:
-            debug('DatabaseScheduler: intial read')
-            update = True
-            self._initial_read = True
-        elif self.schedule_changed():
-            info('DatabaseScheduler: Schedule changed.')
-            update = True
-
-        if update:
+        if self.requires_update():
             self.sync()
             self._schedule = self.all_as_schedule()
             debug('Current schedule:\n%s', '\n'.join(repr(entry) for entry in self._schedule.itervalues()))
