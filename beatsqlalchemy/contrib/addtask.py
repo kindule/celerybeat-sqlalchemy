@@ -27,7 +27,9 @@ session = get_session()
 pt, _ = PeriodicTask.update_or_create(session_obj=session, name="tasks.boardcast_to", task="tasks.boardcast_to",
                                       defaults=dict(crontab=json.dumps({'minute': '*/1'}),
                                                     args='[1,3,4,"a"]',
-                                                    kwargs='{"pp":"workd"}'))
+                                                    kwargs='{"pp":"workd"}',
+                                                    queue="noexist",
+                                                    exchange=""))
 session.add(pt)
 session.flush()
 
