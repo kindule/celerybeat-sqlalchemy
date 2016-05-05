@@ -51,7 +51,7 @@ def open_session():
         raise e
 
 
-class ConstraintError(Exception):
+class ConstrainError(Exception):
     pass
 
 
@@ -60,6 +60,6 @@ def before_flush(session, flush_context, instances):
     for obj in session.new | session.dirty:
         if isinstance(obj, PeriodicTask):
             if not obj.interval and not obj.crontab:
-                raise ConstraintError('One of interval or crontab must be set.')
+                raise ConstrainError('One of interval or crontab must be set.')
             if obj.interval and obj.crontab:
-                raise ConstraintError('Only one of interval or crontab must be set')
+                raise ConstrainError('Only one of interval or crontab must be set')
