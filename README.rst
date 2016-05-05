@@ -83,8 +83,6 @@ addtask example::
     app.config_from_object('settings')
     from model import PeriodicTask, get_session
 
-    print current_app.conf.CELERYBEAT_MAX_LOOP_INTERVAL
-
     session = get_session()
     pt, _ = PeriodicTask.update_or_create(session_obj=session, name="tasks.boardcast_to", task="tasks.boardcast_to",
                                           defaults=dict(crontab=json.dumps({'minute': '*/1'}),
