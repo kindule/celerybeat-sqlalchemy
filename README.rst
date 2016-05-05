@@ -26,6 +26,11 @@ or with version::
 
     $ pip install -U git+ssh://git@192.168.1.121/qtools/beatsqlalchemy.git@tag-1.0.0
 
+
+
+Quick start
+===========
+
 And specifying the scheduler when running Celery Beat, e.g.::
 
     $ celery beat -S beatsqlalchemy.schedulers.DatabaseScheduler
@@ -67,7 +72,6 @@ The example from Celery User Guide::Periodic Tasks.
 		}
 	}
 
-
 addtask example::
 
 
@@ -82,7 +86,6 @@ addtask example::
     print current_app.conf.CELERYBEAT_MAX_LOOP_INTERVAL
 
     session = get_session()
-    # pt = PeriodicTask(name="sdisfsdffaf124asf", task="task_hello",  crontab=cs, interval=iss, args='[]', kwargs='{}')
     pt, _ = PeriodicTask.update_or_create(session_obj=session, name="tasks.boardcast_to", task="tasks.boardcast_to",
                                           defaults=dict(crontab=json.dumps({'minute': '*/1'}),
                                                         args='[1,3,4,"a"]',
