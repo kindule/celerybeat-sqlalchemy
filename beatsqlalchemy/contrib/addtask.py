@@ -24,16 +24,17 @@ print current_app.conf.CELERYBEAT_MAX_LOOP_INTERVAL
 
 session = get_session()
 # pt = PeriodicTask(name="sdisfsdffaf124asf", task="task_hello",  crontab=cs, interval=iss, args='[]', kwargs='{}')
-pt, _ = PeriodicTask.get_or_create(session_obj=session, name="fsdfafaad", task="task_hello",
-                                   crontab=json.dumps({'minute': 1}),
-                                   args='[]', kwargs='{}')
-# session.add(pt)
-# session.flush()
+pt, _ = PeriodicTask.update_or_create(session_obj=session, name="tasks.boardcast_to", task="tasks.boardcast_to",
+                                      defaults=dict(crontab=json.dumps({'minute': '*/1'}),
+                                                    args='[1,3,4,"a"]',
+                                                    kwargs='{"pp":"workd"}'))
+session.add(pt)
+session.flush()
 
 
-pt, _ = PeriodicTask.get_or_create(session_obj=session, name="dfafaad", task="task_hello",
-                                   interval=json.dumps({'every': 30, 'period': 'seconds'}),
-                                   args='[]', kwargs='{}')
+pt, _ = PeriodicTask.update_or_create(session_obj=session, name="tasks.direct_to", task="tasks.direct_to",
+                                      interval=json.dumps({'every': 30, 'period': 'seconds'}),
+                                      defaults=dict(args='[1,2,3,4]', kwargs='{"hello":"world"}'))
 session.add(pt)
 session.flush()
 print pt.schedule
