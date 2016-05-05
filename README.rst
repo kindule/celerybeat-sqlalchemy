@@ -8,7 +8,8 @@ that stores both the schedules themselves and their status
 information in a backend SQLAlchemy database. It can be installed by
 installing the beatsqlalchemy Python egg::
 
-**Feature**
+Feature
+=======
 
  #. 后端使用SQLAlchemy（原生Celerybeat使用的是文本文件）
  #. 支持crontab方式和interval方式调度task
