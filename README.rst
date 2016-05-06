@@ -72,8 +72,8 @@ The example from Celery User Guide::Periodic Tasks.
 		}
 	}
 
-addtask example::
 
+.. code-block:: python
 
     import json
 
