@@ -14,7 +14,6 @@
 '''
 import json
 from multiprocessing.util import Finalize
-
 import datetime
 from celery import current_app
 from celery import schedules
@@ -35,11 +34,12 @@ debug, info, error = logger.debug, logger.info, logger.error
 
 
 class ModelEntry(ScheduleEntry):
+    model_schedules = ((schedules.crontab, PeriodicTask.CrontabSchedule, 'crontab'),
+                       (schedules.schedule, PeriodicTask.IntervalSchedule, 'interval'))
     save_fields = ['last_run_at', 'total_run_count', 'run_immediately']
 
-    def __init__(self, model, session=None):
+    def __init__(self, model):
         self.app = current_app
-        self.session = session or get_session()
         self.name = model.name
         self.task = model.task
         self.schedule = model.schedule
@@ -48,12 +48,12 @@ class ModelEntry(ScheduleEntry):
         self.total_run_count = model.total_run_count
         self.model = model
         self.options = {
-                    'queue': self.model.queue,
-                    'exchange': self.model.exchange,
-                    'routing_key': self.model.routing_key,
-                    'expires': self.model.expires,
-                    'soft_time_limit': self.model.soft_time_limit
-                }
+            'queue': self.model.queue,
+            'exchange': self.model.exchange,
+            'routing_key': self.model.routing_key,
+            'expires': self.model.expires,
+            'soft_time_limit': self.model.soft_time_limit
+        }
         if not model.last_run_at:
             model.last_run_at = self._default_now()
         orig = self.last_run_at = model.last_run_at
@@ -61,14 +61,14 @@ class ModelEntry(ScheduleEntry):
             self.last_run_at = self.last_run_at.replace(tzinfo=None)
         assert orig.hour == self.last_run_at.hour  # timezone sanity
 
-    def _disable(self, model):
+    def _disable(self, model, session):
         model.no_changes = True
         model.enabled = False
-        self.session.add(model)
+        session.add(model)
 
     def is_due(self):
         if not self.model.enabled:
-            return False, 5.0   # 5 second delay for re-enable.
+            return False, 5.0  # 5 second delay for re-enable.
         if self.model.run_immediately:
             # figure out when the schedule would run next anyway
             _, n = self.schedule.is_due(self.last_run_at)
@@ -86,35 +86,27 @@ class ModelEntry(ScheduleEntry):
 
     next = __next__  # for 2to3
 
-    def save(self):
-        obj = PeriodicTask.filter_by(self.session, id=self.model.id).first()
+    def save(self, session):
+        obj = PeriodicTask.filter_by(session, id=self.model.id).first()
         for field in self.save_fields:
             setattr(obj, field, getattr(self.model, field))
-        self.save_model(self.session, obj)
+        self.save_model(session, obj)
 
     @staticmethod
     def save_model(session, obj):
         session.add(obj)
 
     @classmethod
-    def to_schedule(cls, schedule, session):
+    def to_schedule(cls, schedule):
         """
-        :param session:
         :param schedule:
         :return:
         """
-        schedule = schedules.maybe_schedule(schedule)
-        if type(schedule) is schedules.crontab:
-            fill = {'minute': schedule._orig_minute,
-                    'hour': schedule._orig_hour,
-                    'day_of_week': schedule._orig_day_of_week,
-                    'day_of_month': schedule._orig_day_of_month,
-                    'month_of_year': schedule._orig_month_of_year}
-            return json.dumps(fill), 'crontab'
-        elif type(schedule) is schedules.schedule:
-            fill = {'every': schedule.seconds,
-                    'period': 'seconds'}
-            return json.dumps(fill), 'interval'
+        for schedule_type, schedule_model, schedule_name in cls.model_schedules:
+            schedule = schedules.maybe_schedule(schedule)
+            if isinstance(schedule, schedule_type):
+                schedule_field = schedule_model.from_schedule(schedule).dumps()
+                return schedule_field, schedule_name
         else:
             raise ValueError('Cannot convert schedule type {0!r} to model'.format(schedule))
 
@@ -132,8 +124,8 @@ class ModelEntry(ScheduleEntry):
         for skip_field in skip_fields:
             fields.pop(skip_field, None)
         schedule = fields.pop('schedule')
-        schedule_field, schedule_type = cls.to_schedule(schedule, session)
-        fields[schedule_type] = schedule_field
+        schedule_field, schedule_name = cls.to_schedule(schedule)
+        fields[schedule_name] = schedule_field
         fields['args'] = json.dumps(fields.get('args') or [])
         fields['kwargs'] = json.dumps(fields.get('kwargs') or {})
         model, _ = PeriodicTask.update_or_create(session, name=name, defaults=fields)
@@ -188,7 +180,7 @@ class DatabaseScheduler(Scheduler):
         return new_entry
 
     def sync(self):
-        debug('Writing entries...')
+        debug('Writing entries...\n dirty objects: {}'.format(self._dirty))
         _tried = set()
         while self._dirty:
             try:
@@ -214,7 +206,7 @@ class DatabaseScheduler(Scheduler):
             entries.setdefault(
                 'celery.backend_cleanup', {
                     'task': 'celery.backend_cleanup',
-                    'schedule': schedules.crontab('*/5', '*', '*'),
+                    'schedule': schedules.crontab('0', '4', '*'),
                     'options': {'expires': 12 * 3600},
                 },
             )

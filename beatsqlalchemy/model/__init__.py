@@ -22,12 +22,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.schema import MetaData
 
-__all__ = [
-    'UpdateFlag'
-]
-
-
-engine = create_engine(current_app.conf.BEAT_SQLAlchemy_URL, pool_size=20, pool_recycle=3600)
+engine = create_engine(current_app.conf.BEAT_SQLAlchemy_URL, pool_size=20, pool_recycle=3600, echo='debug')
 Session = sessionmaker(bind=engine, autocommit=True)
 metadata = MetaData(bind=engine)
 
@@ -49,6 +44,8 @@ def open_session():
     except Exception as e:
         new_session.rollback()
         raise e
+    finally:
+        new_session.close()
 
 
 class ConstrainError(Exception):

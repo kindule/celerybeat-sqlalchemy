@@ -15,10 +15,8 @@
 import datetime
 import json
 import celery.schedules
-
 from sqlalchemy import Column, String, DateTime, Integer, Boolean
 from sqlalchemy.orm import validates
-
 from .base import Base
 
 
@@ -46,21 +44,56 @@ class PeriodicTask(Base):
     soft_time_limit = Column(Integer, default=0)
     expires = Column(DateTime)
 
+    class CrontabSchedule(object):
+
+        def __init__(self, minute="*", hour="*", day_of_week="*", day_of_month="*", month_of_year="*"):
+            self.schedule = celery.schedules.crontab(minute, hour, day_of_week, day_of_month, month_of_year)
+            self.minute = minute
+            self.hour = hour
+            self.day_of_week = day_of_week
+            self.day_of_month = day_of_month
+            self.month_of_year = month_of_year
+
+        def dumps(self):
+            return json.dumps({'minute': self.minute,
+                               'hour': self.hour,
+                               'day_of_week': self.day_of_week,
+                               'day_of_month': self.day_of_month,
+                               'month_of_year': self.month_of_year})
+
+        @classmethod
+        def from_schedule(cls, schedule):
+            spec = {'minute': schedule._orig_minute,
+                    'hour': schedule._orig_hour,
+                    'day_of_week': schedule._orig_day_of_week,
+                    'day_of_month': schedule._orig_day_of_month,
+                    'month_of_year': schedule._orig_month_of_year}
+            return cls(**spec)
+
+    class IntervalSchedule(object):
+        def __init__(self, every, period='seconds'):
+            self.schedule = celery.schedules.schedule(datetime.timedelta(**{period: every}))
+            self.every = every
+            self.period = period
+
+        def dumps(self):
+            return json.dumps({"every": self.every,
+                               "period": self.period})
+
+        @classmethod
+        def from_schedule(cls, schedule, period='seconds'):
+            every = max(schedule.run_every.total_seconds(), 0)
+            return cls(every=every, period=period)
+
     @validates('crontab', 'interval')
-    def interval_validation(self, schedule_type, schedule):
-        keymap = {'crontab': {'minute': '*',
-                              'hour': '*',
-                              'day_of_week': '*',
-                              'day_of_month': '*',
-                              'month_of_year': '*'},
-                  'interval': {'period': 'seconds', 'every': 300}}
+    def schedule_validation(self, schedule_type, schedule):
+        schedules = {'crontab': self.CrontabSchedule,
+                     'interval': self.IntervalSchedule}
         if schedule is not None:
-            orig_field = json.loads(schedule)
-            if set(orig_field.keys()).issubset(keymap[schedule_type].keys()):
-                keymap[schedule_type].update(json.loads(schedule))
-                return json.dumps(keymap[schedule_type])
-            else:
-                raise Exception("schedule_type {} invalid value {}".format(schedule_type, schedule))
+            if isinstance(schedule, basestring):
+                return schedules[schedule_type](**json.loads(schedule)).dumps()
+            elif isinstance(schedule, celery.schedules.schedule):
+                return schedules[schedule_type].from_schedule(schedule).dumps()
 
     def __str__(self):
         fmt = '{0.name}: {0.crontab}'
@@ -69,7 +102,6 @@ class PeriodicTask(Base):
     @property
     def schedule(self):
         if self.crontab:
-            return celery.schedules.crontab(**json.loads(self.crontab))
+            return self.CrontabSchedule(**json.loads(self.crontab)).schedule
         if self.interval:
-            interval = json.loads(self.interval)
-            return celery.schedules.schedule(datetime.timedelta(**{interval["period"]: interval["every"]}))
+            return self.IntervalSchedule(**json.loads(self.interval)).schedule
