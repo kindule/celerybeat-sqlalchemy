@@ -15,13 +15,15 @@
 import json
 from multiprocessing.util import Finalize
 import datetime
+
+import sqlalchemy
 from celery import current_app
 from celery import schedules
 from celery.beat import ScheduleEntry, Scheduler
 from celery.utils.encoding import safe_str
 from celery.utils.log import get_logger
 from celery.utils.timeutils import is_naive
-from model import PeriodicTask, get_session
+from .model import PeriodicTask, get_session
 
 DEFAULT_MAX_INTERVAL = 5
 
@@ -165,12 +167,16 @@ class DatabaseScheduler(Scheduler):
     def all_as_schedule(self):
         debug('DatabaseScheduler: Fetching database schedule')
         s = {}
-        for model in self.Model.filter_by(self.session, enabled=True).all():
-            try:
-                s[model.name] = self.Entry(model)
-            except ValueError:
-                pass
-        return s
+        try:
+            for model in self.Model.filter_by(self.session, enabled=True).all():
+                try:
+                    s[model.name] = self.Entry(model)
+                except ValueError:
+                    pass
+            return s
+        except sqlalchemy.exc.OperationalError as exc:
+            error(exc)
+            return {}
 
     def reserve(self, entry):
         new_entry = Scheduler.reserve(self, entry)
@@ -187,6 +193,8 @@ class DatabaseScheduler(Scheduler):
                 name = self._dirty.pop()
                 _tried.add(name)
                 self.schedule[name].save(self.session)
+            except sqlalchemy.exc.OperationalError as exc:
+                error(exc)
             except KeyError:
                 pass
 
