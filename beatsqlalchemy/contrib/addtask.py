@@ -13,7 +13,6 @@
 #=============================================================================
 '''
 import json
-
 from celery import Celery, current_app
 
 app = Celery('celerybeat-sqlalchemy')
@@ -24,18 +23,17 @@ print current_app.conf.CELERYBEAT_MAX_LOOP_INTERVAL
 
 session = get_session()
 # pt = PeriodicTask(name="sdisfsdffaf124asf", task="task_hello",  crontab=cs, interval=iss, args='[]', kwargs='{}')
-pt, _ = PeriodicTask.update_or_create(session_obj=session, name="tasks.boardcast_to", task="tasks.boardcast_to",
-                                      defaults=dict(crontab=json.dumps({'minute': '*/1'}),
-                                                    args='[1,3,4,"a"]',
-                                                    kwargs='{"pp":"workd"}',
-                                                    queue="noexist",
-                                                    exchange=""))
-session.add(pt)
-session.flush()
+task_boardcast, _ = PeriodicTask.update_or_create(session_obj=session, name="tasks.boardcast_to",
+                                                  task="tasks.boardcast_to",
+                                                  defaults=dict(crontab=json.dumps({'minute': '*/1'}),
+                                                                args='[1,3,4,"a"]',
+                                                                kwargs='{"pp":"workd"}',
+                                                                queue="noexist",
+                                                                exchange=""))
 
-
-pt, _ = PeriodicTask.update_or_create(session_obj=session, name="tasks.direct_to", task="tasks.direct_to",
-                                      interval=json.dumps({'every': 30, 'period': 'seconds'}),
-                                      defaults=dict(args='[1,2,3,4]', kwargs='{"hello":"world"}'))
-session.add(pt)
+task_direct, _ = PeriodicTask.update_or_create(session_obj=session, name="tasks.direct_to", task="tasks.direct_to",
+                                               defaults=dict(args=[1, 2, 3, 4],
+                                                             kwargs={"hello": "world"},
+                                                             interval={'every': 30, 'period': 'seconds'}, ))
+session.add_all([task_boardcast, task_direct])
 session.flush()

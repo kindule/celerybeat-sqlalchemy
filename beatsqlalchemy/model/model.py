@@ -92,8 +92,18 @@ class PeriodicTask(Base):
         if schedule is not None:
             if isinstance(schedule, basestring):
                 return schedules[schedule_type](**json.loads(schedule)).dumps()
+            elif isinstance(schedule, dict):
+                return schedules[schedule_type](**schedule).dumps()
             elif isinstance(schedule, celery.schedules.schedule):
                 return schedules[schedule_type].from_schedule(schedule).dumps()
+
+    @validates('args', 'kwargs')
+    def param_validation(self, key, value):
+        if value is not None:
+            if isinstance(value, basestring):
+                return json.dumps(json.loads(value))
+            elif isinstance(value, (dict, list)):
+                return json.dumps(value)
 
     def __str__(self):
         fmt = '{0.name}: {0.crontab}'
