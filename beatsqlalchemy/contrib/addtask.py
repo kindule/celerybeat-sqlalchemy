@@ -39,4 +39,3 @@ pt, _ = PeriodicTask.update_or_create(session_obj=session, name="tasks.direct_to
                                       defaults=dict(args='[1,2,3,4]', kwargs='{"hello":"world"}'))
 session.add(pt)
 session.flush()
-print pt.schedule
