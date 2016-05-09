@@ -1,2 +1,2 @@
-celery
+celery<4.0
 sqlalchemy
