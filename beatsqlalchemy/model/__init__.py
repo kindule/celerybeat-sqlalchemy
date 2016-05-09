@@ -22,7 +22,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.schema import MetaData
 
-engine = create_engine(current_app.conf.BEAT_SQLAlchemy_URL, pool_size=20, pool_recycle=3600, echo='debug')
+engine = create_engine(current_app.conf.BEAT_SQLAlchemy_URL, pool_size=20, pool_recycle=3600, echo=False)
 Session = sessionmaker(bind=engine, autocommit=True)
 metadata = MetaData(bind=engine)
 
