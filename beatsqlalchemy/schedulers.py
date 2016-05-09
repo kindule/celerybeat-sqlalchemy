@@ -186,7 +186,7 @@ class DatabaseScheduler(Scheduler):
             try:
                 name = self._dirty.pop()
                 _tried.add(name)
-                self.schedule[name].save()
+                self.schedule[name].save(self.session)
             except KeyError:
                 pass
 
