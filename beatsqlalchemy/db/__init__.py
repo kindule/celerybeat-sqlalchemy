@@ -13,18 +13,21 @@
 #=============================================================================
 '''
 from contextlib import contextmanager
-
-from .model import PeriodicTask
 from celery import current_app
 from sqlalchemy import event
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.schema import MetaData
+from .model import Base
+from .model import PeriodicTask
+
 
 engine = create_engine(current_app.conf.BEAT_SQLAlchemy_URL, pool_size=20, pool_recycle=3600, echo=False)
 Session = sessionmaker(bind=engine, autocommit=True)
 metadata = MetaData(bind=engine)
+
+Base.metadata.create_all(engine, checkfirst=True)
 
 
 def get_session():

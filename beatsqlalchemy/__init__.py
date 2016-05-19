@@ -18,7 +18,7 @@ version_info_t = namedtuple(
     'version_info_t', ('major', 'minor', 'micro', 'releaselevel', 'serial'),
 )
 
-VERSION = version_info_t(1, 0, 2, '', '')
+VERSION = version_info_t(1, 0, 3, '', '')
 __version__ = '{0.major}.{0.minor}.{0.micro}{0.releaselevel}'.format(VERSION)
 __author__ = 'Jin Ge'
 __contact__ = 'ge.jin@woqutech.com'

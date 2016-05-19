@@ -17,7 +17,7 @@ from celery import Celery, current_app
 
 app = Celery('celerybeat-sqlalchemy')
 app.config_from_object('settings')
-from model import PeriodicTask, get_session
+from db import PeriodicTask, get_session
 
 print current_app.conf.CELERYBEAT_MAX_LOOP_INTERVAL
 

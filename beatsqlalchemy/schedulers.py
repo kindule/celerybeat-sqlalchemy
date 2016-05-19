@@ -23,7 +23,7 @@ from celery.beat import ScheduleEntry, Scheduler
 from celery.utils.encoding import safe_str
 from celery.utils.log import get_logger
 from celery.utils.timeutils import is_naive
-from .model import PeriodicTask, get_session
+from .db import PeriodicTask, get_session
 
 DEFAULT_MAX_INTERVAL = 5
 

@@ -15,7 +15,7 @@
 from celery import Celery
 app = Celery('celerybeat-sqlalchemy')
 app.config_from_object('settings')
-from model import engine
-from model.model import Base
+from beatsqlalchemy.db import engine
+from beatsqlalchemy.db.model import Base
 
 Base.metadata.create_all(engine)
